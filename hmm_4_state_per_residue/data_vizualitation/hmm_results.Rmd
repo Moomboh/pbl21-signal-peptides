@@ -1,0 +1,180 @@
+---
+title: "hmm_results"
+author: "Maximilian Mair"
+date: "10/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem Based Learning
+# Training a machine learning algorithm to identify Signal Peptige Sequences in proteins
+
+In this case we analyze the output result of a trained Higher Order Hidden Markov Model in order to evaluate the performance and gain further insight.
+
+
+```{r setup, include=FALSE, message=FALSE}
+library(ggplot2)
+library(data.table)
+library(ggthemes)
+library(grid)
+library(tidyverse)
+
+data_4_states_hmm <- fread("data/results_highest_order_4_state.csv")
+data_6_to_4_states_hmm  <- fread("data/results_highest_order_6_to_4_state.csv")
+data_6_states_hmm <- fread("data/results_highest_order_6_state.csv")
+data_k_smoothing_hmm <- fread("data/results_highest_order_k_smoothing.csv")
+random_baseline_results <- fread("data/random_baseline_results.csv")
+```
+
+## R Markdown
+
+
+```{r data_wrangling}
+data_4_states_hmm[, results_path := NULL]
+data_4_states_hmm <- dcast(data_4_states_hmm, ... ~ test_partition, value.var="mcc")
+colnames(data_4_states_hmm) <- c('highest_order', 'mcc_1_4', 'mcc_2_4', 'mcc_3_4', 'mcc_4_4') 
+data_4_states_hmm[, mean_mcc_4 := (mcc_1_4+mcc_2_4+mcc_3_4+mcc_4_4)/4, by=highest_order]
+data_4_states_hmm[, std_deviation_4 := sd(c(mcc_1_4,mcc_2_4,mcc_3_4,mcc_4_4)), by=highest_order]
+data_4_states_hmm[, margin_of_error_4 := std_deviation_4/sqrt(4) * qt(0.95, df=3), by=highest_order]
+
+data_6_to_4_states_hmm[, results_path := NULL]
+data_6_to_4_states_hmm[, k_smoothing := NULL]
+data_6_to_4_states_hmm <- dcast(data_6_to_4_states_hmm, ... ~ test_partition, value.var="mcc")
+colnames(data_6_to_4_states_hmm) <- c('highest_order', 'mcc_1_6', 'mcc_2_6', 'mcc_3_6', 'mcc_4_6') 
+data_6_to_4_states_hmm[, mean_mcc_6 := (mcc_1_6+mcc_2_6+mcc_3_6+mcc_4_6)/4, by=highest_order]
+data_6_to_4_states_hmm[, std_deviation_6 := sd(c(mcc_1_6,mcc_2_6,mcc_3_6,mcc_4_6)), by=highest_order]
+data_6_to_4_states_hmm[, margin_of_error_6 := std_deviation_6/sqrt(4) * qt(0.95, df=3), by=highest_order]
+
+random_baseline_results <- random_baseline_results[!substitute_no_sp_before & substitute_no_sp_after]
+random_baseline_results[, substitute_no_sp_before := NULL]
+random_baseline_results[, substitute_no_sp_after := NULL]
+random_baseline_results[, k_smoothing := NULL]
+colnames(random_baseline_results) <- c('highest_order', 'mcc_baseline') 
+
+# joining those two tables because they operate similar but work different internally.
+data_4_states_hmm <- merge(data_4_states_hmm, data_6_to_4_states_hmm, by="highest_order", all=FALSE, sort=FALSE)
+data_4_states_hmm <- merge(data_4_states_hmm, random_baseline_results, by="highest_order", all=FALSE, sort=FALSE)
+
+data_6_states_hmm[, results_path := NULL]
+data_6_states_hmm[, k_smoothing := NULL]
+data_6_states_hmm <- dcast(data_6_states_hmm, ... ~ test_partition, value.var="mcc")
+colnames(data_6_states_hmm) <- c('highest_order', 'mcc_1', 'mcc_2', 'mcc_3', 'mcc_4') 
+data_6_states_hmm[, mean_mcc := (mcc_1+mcc_2+mcc_3+mcc_4)/4, by=highest_order]
+data_6_states_hmm[, std_deviation := sd(c(mcc_1,mcc_2,mcc_3,mcc_4)), by=highest_order]
+data_6_states_hmm[, margin_of_error := std_deviation/sqrt(4) * qt(0.95, df=3), by=highest_order]
+
+data_k_smoothing_hmm[, results_path := NULL]
+data_k_smoothing_hmm[, highest_order := NULL]
+data_k_smoothing_hmm <- dcast(data_k_smoothing_hmm, ... ~ test_partition, value.var="mcc")
+colnames(data_k_smoothing_hmm) <- c('k_smoothing', 'mcc_1', 'mcc_2', 'mcc_3', 'mcc_4') 
+data_k_smoothing_hmm[, mean_mcc := (mcc_1+mcc_2+mcc_3+mcc_4)/4, by=k_smoothing] # mcc_2 is really off
+data_k_smoothing_hmm[, std_deviation := sd(c(mcc_1,mcc_2,mcc_3,mcc_4)), by=k_smoothing]
+data_k_smoothing_hmm[, margin_of_error := std_deviation/sqrt(4) * qt(0.95, df=3), by=k_smoothing]
+```
+
+```{r data}
+data_4_states_hmm
+data_6_states_hmm
+data_k_smoothing_hmm
+random_baseline_results
+```
+
+
+```{r plots, echo=FALSE}
+pd <- position_dodge(0.3)
+
+ggplot(data_4_states_hmm, aes(y=mean_mcc_4, x=highest_order)) +
+  geom_line(position=pd, size=1) +
+  geom_point(aes(y=mcc_1_4, x=highest_order)) +
+  geom_point(aes(y=mcc_2_4, x=highest_order)) +
+  geom_point(aes(y=mcc_3_4, x=highest_order)) +
+  geom_point(aes(y=mcc_4_4, x=highest_order)) +
+  geom_errorbar(aes(ymin=mean_mcc_4-margin_of_error_4, ymax=mean_mcc_4+margin_of_error_4), width=1, size=0.5, position=pd) +
+  geom_point(position=pd, shape=21, size=1, fill="white") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  xlab("Highest Order") + ylab("Meathews Correlation Coefficient") +
+  theme_minimal()
+
+ggplot(data_4_states_hmm, aes(y=mean_mcc_4, x=highest_order)) +
+  geom_line(aes(y=mean_mcc_4, x=highest_order), position=pd, size=1) +
+  geom_point(aes(y=mcc_1_4, x=highest_order)) +
+  geom_point(aes(y=mcc_2_4, x=highest_order)) +
+  geom_point(aes(y=mcc_3_4, x=highest_order)) +
+  geom_point(aes(y=mcc_4_4, x=highest_order)) +
+  geom_errorbar(aes(ymin=mean_mcc_4-margin_of_error_4, ymax=mean_mcc_4+margin_of_error_4), width=1, size=0.5, position=pd) +
+  geom_point(aes(y=mean_mcc_4, x=highest_order), position=pd, shape=21, size=1, fill="white") +
+  
+  geom_line(aes(y=mean_mcc_6, x=highest_order), position=pd, size=1, color="blue") +
+  geom_point(aes(y=mcc_1_6, x=highest_order), color="blue") +
+  geom_point(aes(y=mcc_2_6, x=highest_order), color="blue") +
+  geom_point(aes(y=mcc_3_6, x=highest_order), color="blue") +
+  geom_point(aes(y=mcc_4_6, x=highest_order), color="blue") +
+  geom_errorbar(aes(ymin=mean_mcc_6-margin_of_error_6, ymax=mean_mcc_6+margin_of_error_6), width=1, size=0.5, position=pd, color="blue") +
+  
+  geom_point(aes(y=mean_mcc_6, x=highest_order), position=pd, shape=21, size=1, fill="white") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  xlab("Highest Order") + ylab("Meathews Correlation Coefficient") +
+  theme_minimal()
+
+ggplot(data_4_states_hmm, aes(y=mean_mcc_4, x=highest_order)) +
+  geom_line(aes(y=mean_mcc_4, x=highest_order), position=pd, size=1) +
+  geom_point(aes(y=mcc_1_4, x=highest_order)) +
+  geom_point(aes(y=mcc_2_4, x=highest_order)) +
+  geom_point(aes(y=mcc_3_4, x=highest_order)) +
+  geom_point(aes(y=mcc_4_4, x=highest_order)) +
+  geom_errorbar(aes(ymin=mean_mcc_4-margin_of_error_4, ymax=mean_mcc_4+margin_of_error_4), width=1, size=0.5, position=pd) +
+  geom_point(aes(y=mean_mcc_4, x=highest_order), position=pd, shape=21, size=1, fill="white") +
+  
+  geom_line(aes(y=mean_mcc_6, x=highest_order), position=pd, size=1, color="blue") +
+  geom_point(aes(y=mcc_1_6, x=highest_order), color="blue") +
+  geom_point(aes(y=mcc_2_6, x=highest_order), color="blue") +
+  geom_point(aes(y=mcc_3_6, x=highest_order), color="blue") +
+  geom_point(aes(y=mcc_4_6, x=highest_order), color="blue") +
+  geom_errorbar(aes(ymin=mean_mcc_6-margin_of_error_6, ymax=mean_mcc_6+margin_of_error_6), width=1, size=0.5, position=pd, color="blue") +
+  geom_point(aes(y=mean_mcc_6, x=highest_order), position=pd, shape=21, size=1, fill="white") +
+  
+  geom_line(aes(y=mcc_baseline, x=highest_order), position=pd, size=1, color="red") +
+  geom_point(aes(y=mcc_baseline, x=highest_order), position=pd, shape=21, size=1, fill="white") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  xlab("Highest Order") + ylab("Meathews Correlation Coefficient") +
+  theme_minimal()
+
+ggplot(data_6_states_hmm, aes(y=mean_mcc, x=highest_order)) +
+  geom_line(position=pd, size=1) +
+  geom_point(aes(y=mcc_1, x=highest_order)) +
+  geom_point(aes(y=mcc_2, x=highest_order)) +
+  geom_point(aes(y=mcc_3, x=highest_order)) +
+  geom_point(aes(y=mcc_4, x=highest_order)) +
+  geom_errorbar(aes(ymin=mean_mcc-margin_of_error, ymax=mean_mcc+margin_of_error), width=1, size=0.5, position=pd) +
+  geom_point(position=pd, shape=21, size=1, fill="white") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  xlab("Highest Order") + ylab("Meathews Correlation Coefficient") +
+  theme_minimal()
+  
+ggplot(data_k_smoothing_hmm, aes(y=mean_mcc, x=k_smoothing)) +
+  geom_line(size=1, color="red") +
+  geom_point(shape=21, size=1, fill="white") +
+  
+  geom_line(aes(y=mcc_1, x=k_smoothing), size=1) +
+  geom_point(aes(y=mcc_1, x=k_smoothing), shape=21, size=1, fill="white") +
+  
+  geom_line(aes(y=mcc_2, x=k_smoothing), size=1) +
+  geom_point(aes(y=mcc_2, x=k_smoothing), shape=21, size=1, fill="white") +
+  
+  geom_line(aes(y=mcc_3, x=k_smoothing), size=1) +
+  geom_point(aes(y=mcc_3, x=k_smoothing), shape=21, size=1, fill="white") +
+  
+  geom_line(aes(y=mcc_4, x=k_smoothing), size=1) +
+  geom_point(aes(y=mcc_4, x=k_smoothing), shape=21, size=1, fill="white") +
+  
+  # geom_errorbar(aes(ymin=mean_mcc-margin_of_error, ymax=mean_mcc+margin_of_error)) +
+  scale_x_continuous(limit=c(0.0, 0.2)) +
+  scale_y_continuous(limit=c(0.57, 0.65)) +
+  xlab("K Smoothing") + ylab("Meathews Correlation Coefficient") +
+  theme_minimal()
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

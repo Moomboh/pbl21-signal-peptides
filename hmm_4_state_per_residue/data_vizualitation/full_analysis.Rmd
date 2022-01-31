@@ -1,0 +1,434 @@
+---
+title: "full_analysis"
+author: "Maximilian Mair"
+date: "21/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem Based Learning
+# Training a machine learning algorithm to identify Signal Peptige Sequences in proteins
+
+In this case we analyze the output result of a trained Higher Order Hidden Markov Model in order to evaluate the performance and gain further insight.
+
+
+```{r setup, include=FALSE, message=FALSE}
+library(ggplot2)
+library(data.table)
+library(ggthemes)
+library(grid)
+library(tidyverse)
+library(pheatmap)
+
+hmm_output_no_substituiton <- fread("data/full_analysis_highest_order_iteration.csv")
+hmm_output_subsitution_before <- fread("data/full_analysis_highest_order_iteration.csv")
+hmm_output_subsitution_after <- fread("data/full_analysis_highest_order_iteration.csv")
+
+hmm_output_master_no_substitution <- fread("data/full_analysis_highest_order_iteration_master.csv")
+hmm_output_master_substitution_before <- fread("data/full_analysis_highest_order_iteration_master.csv")
+hmm_output_master_substitution_after <- fread("data/full_analysis_highest_order_iteration_master.csv")
+
+random_baselines <- fread("data/random_baseline.tsv")
+
+starting_probabilities <- fread("data/starting_probabilities.csv", header=FALSE)
+emission_probabilities_A <- as.matrix(read.csv("data/emission_probabilities_A.csv"))
+emission_probabilities_B <- as.matrix(read.csv("data/emission_probabilities_B.csv"))
+```
+
+## R Markdown
+
+
+```{r data_wrangling}
+hmm_output_no_substituiton <- hmm_output_no_substituiton[, K_Smoothing := NULL]
+hmm_output_no_substituiton <- hmm_output_no_substituiton[Substitution_non_SP_before == F]
+hmm_output_no_substituiton <- hmm_output_no_substituiton[Substitution_non_SP_after == F]
+hmm_output_no_substituiton <- hmm_output_no_substituiton[, Substitution_non_SP_before := NULL]
+hmm_output_no_substituiton <- hmm_output_no_substituiton[, Substitution_non_SP_after := NULL]
+hmm_output_no_substituiton <- dcast(hmm_output_no_substituiton, ... ~ K_Fold, value.var=c("Accuracy", "Precision", "MCC", "Recall"))
+
+hmm_output_no_substituiton[, Mean_Accuracy := (Accuracy_1+Accuracy_2+Accuracy_3+Accuracy_4)/4, by=HighestOrder]
+hmm_output_no_substituiton[, Std_Deviation_Accuracy := sd(c(Accuracy_1,Accuracy_2,Accuracy_3,Accuracy_4)), by=HighestOrder]
+# hmm_output_no_substituiton[, Error_Margin_Accuracy := Std_Deviation_Accuracy/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_no_substituiton[, Error_Margin_Accuracy := Std_Deviation_Accuracy/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_no_substituiton[, Mean_Precision := (Precision_1+Precision_2+Precision_3+Precision_4)/4, by=HighestOrder]
+hmm_output_no_substituiton[, Std_Deviation_Precision := sd(c(Precision_1,Precision_2,Precision_3,Precision_4)), by=HighestOrder]
+# hmm_output_no_substituiton[, Error_Margin_Precision := Std_Deviation_Precision/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_no_substituiton[, Error_Margin_Precision := Std_Deviation_Precision/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_no_substituiton[, Mean_MCC := (MCC_1+MCC_2+MCC_3+MCC_4)/4, by=HighestOrder]
+hmm_output_no_substituiton[, Std_Deviation_MCC := sd(c(MCC_1,MCC_2,MCC_3,MCC_4)), by=HighestOrder]
+# hmm_output_no_substituiton[, Error_Margin_MCC := Std_Deviation_MCC/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_no_substituiton[, Error_Margin_MCC := Std_Deviation_MCC/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_no_substituiton[, Mean_Recall := (Recall_1+Recall_2+Recall_3+Recall_4)/4, by=HighestOrder]
+hmm_output_no_substituiton[, Std_Deviation_Recall := sd(c(Recall_1,Recall_2,Recall_3,Recall_4)), by=HighestOrder]
+# hmm_output_no_substituiton[, Error_Margin_Recall := Std_Deviation_Recall/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_no_substituiton[, Error_Margin_Recall := Std_Deviation_Recall/sqrt(4) * 1.95996, by=HighestOrder]
+
+
+hmm_output_subsitution_before <- hmm_output_subsitution_before[, K_Smoothing := NULL]
+hmm_output_subsitution_before <- hmm_output_subsitution_before[Substitution_non_SP_before == T]
+hmm_output_subsitution_before <- hmm_output_subsitution_before[, Substitution_non_SP_before := NULL]
+hmm_output_subsitution_before <- hmm_output_subsitution_before[, Substitution_non_SP_after := NULL]
+hmm_output_subsitution_before <- dcast(hmm_output_subsitution_before, ... ~ K_Fold, value.var=c("Accuracy", "Precision", "MCC", "Recall"))
+
+hmm_output_subsitution_before[, Mean_Accuracy := (Accuracy_1+Accuracy_2+Accuracy_3+Accuracy_4)/4, by=HighestOrder]
+hmm_output_subsitution_before[, Std_Deviation_Accuracy := sd(c(Accuracy_1,Accuracy_2,Accuracy_3,Accuracy_4)), by=HighestOrder]
+# hmm_output_subsitution_before[, Error_Margin_Accuracy := Std_Deviation_Accuracy/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_subsitution_before[, Error_Margin_Accuracy := Std_Deviation_Accuracy/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_subsitution_before[, Mean_Precision := (Precision_1+Precision_2+Precision_3+Precision_4)/4, by=HighestOrder]
+hmm_output_subsitution_before[, Std_Deviation_Precision := sd(c(Precision_1,Precision_2,Precision_3,Precision_4)), by=HighestOrder]
+# hmm_output_subsitution_before[, Error_Margin_Precision := Std_Deviation_Precision/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_subsitution_before[, Error_Margin_Precision := Std_Deviation_Precision/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_subsitution_before[, Mean_MCC := (MCC_1+MCC_2+MCC_3+MCC_4)/4, by=HighestOrder]
+hmm_output_subsitution_before[, Std_Deviation_MCC := sd(c(MCC_1,MCC_2,MCC_3,MCC_4)), by=HighestOrder]
+# hmm_output_subsitution_before[, Error_Margin_MCC := Std_Deviation_MCC/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_subsitution_before[, Error_Margin_MCC := Std_Deviation_MCC/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_subsitution_before[, Mean_Recall := (Recall_1+Recall_2+Recall_3+Recall_4)/4, by=HighestOrder]
+hmm_output_subsitution_before[, Std_Deviation_Recall := sd(c(Recall_1,Recall_2,Recall_3,Recall_4)), by=HighestOrder]
+# hmm_output_subsitution_before[, Error_Margin_Recall := Std_Deviation_Recall/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_subsitution_before[, Error_Margin_Recall := Std_Deviation_Recall/sqrt(4) * 1.95996, by=HighestOrder]
+
+
+hmm_output_subsitution_after <- hmm_output_subsitution_after[, K_Smoothing := NULL]
+hmm_output_subsitution_after <- hmm_output_subsitution_after[Substitution_non_SP_after == T]
+hmm_output_subsitution_after <- hmm_output_subsitution_after[, Substitution_non_SP_before := NULL]
+hmm_output_subsitution_after <- hmm_output_subsitution_after[, Substitution_non_SP_after := NULL]
+hmm_output_subsitution_after <- dcast(hmm_output_subsitution_after, ... ~ K_Fold, value.var=c("Accuracy", "Precision", "MCC", "Recall"))
+
+hmm_output_subsitution_after[, Mean_Accuracy := (Accuracy_1+Accuracy_2+Accuracy_3+Accuracy_4)/4, by=HighestOrder]
+hmm_output_subsitution_after[, Std_Deviation_Accuracy := sd(c(Accuracy_1,Accuracy_2,Accuracy_3,Accuracy_4)), by=HighestOrder]
+# hmm_output_subsitution_after[, Error_Margin_Accuracy := Std_Deviation_Accuracy/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_subsitution_after[, Error_Margin_Accuracy := Std_Deviation_Accuracy/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_subsitution_after[, Mean_Precision := (Precision_1+Precision_2+Precision_3+Precision_4)/4, by=HighestOrder]
+hmm_output_subsitution_after[, Std_Deviation_Precision := sd(c(Precision_1,Precision_2,Precision_3,Precision_4)), by=HighestOrder]
+# hmm_output_subsitution_after[, Error_Margin_Precision := Std_Deviation_Precision/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_subsitution_after[, Error_Margin_Precision := Std_Deviation_Precision/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_subsitution_after[, Mean_MCC := (MCC_1+MCC_2+MCC_3+MCC_4)/4, by=HighestOrder]
+hmm_output_subsitution_after[, Std_Deviation_MCC := sd(c(MCC_1,MCC_2,MCC_3,MCC_4)), by=HighestOrder]
+# hmm_output_subsitution_after[, Error_Margin_MCC := Std_Deviation_MCC/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_subsitution_after[, Error_Margin_MCC := Std_Deviation_MCC/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_subsitution_after[, Mean_Recall := (Recall_1+Recall_2+Recall_3+Recall_4)/4, by=HighestOrder]
+hmm_output_subsitution_after[, Std_Deviation_Recall := sd(c(Recall_1,Recall_2,Recall_3,Recall_4)), by=HighestOrder]
+# hmm_output_subsitution_after[, Error_Margin_Recall := Std_Deviation_Recall/sqrt(4) * qt(0.95, df=3), by=HighestOrder]
+hmm_output_subsitution_after[, Error_Margin_Recall := Std_Deviation_Recall/sqrt(4) * 1.95996, by=HighestOrder]
+
+hmm_output_master_no_substitution <- hmm_output_master_no_substitution[, K_Smoothing := NULL]
+hmm_output_master_no_substitution <- hmm_output_master_no_substitution[Substitution_non_SP_before == F]
+hmm_output_master_no_substitution <- hmm_output_master_no_substitution[Substitution_non_SP_after == F]
+hmm_output_master_no_substitution <- hmm_output_master_no_substitution[, Substitution_non_SP_before := NULL]
+hmm_output_master_no_substitution <- hmm_output_master_no_substitution[, Substitution_non_SP_after := NULL]
+
+hmm_output_master_substitution_before <- hmm_output_master_substitution_before[, K_Smoothing := NULL]
+hmm_output_master_substitution_before <- hmm_output_master_substitution_before[Substitution_non_SP_before == T]
+hmm_output_master_substitution_before <- hmm_output_master_substitution_before[, Substitution_non_SP_before := NULL]
+hmm_output_master_substitution_before <- hmm_output_master_substitution_before[, Substitution_non_SP_after := NULL]
+
+hmm_output_master_substitution_after <- hmm_output_master_substitution_after[, K_Smoothing := NULL]
+hmm_output_master_substitution_after <- hmm_output_master_substitution_after[Substitution_non_SP_after == T]
+hmm_output_master_substitution_after <- hmm_output_master_substitution_after[, Substitution_non_SP_before := NULL]
+hmm_output_master_substitution_after <- hmm_output_master_substitution_after[, Substitution_non_SP_after := NULL]
+
+random_baselines <- random_baselines[group == "_all_"]
+random_baselines <- random_baselines[label == "_all_"]
+random_baselines <- random_baselines[, group := NULL]
+random_baselines <- random_baselines[, label := NULL]
+random_baselines <- random_baselines[, accuracy_sd := NULL]
+random_baselines <- random_baselines[, precision_sd := NULL]
+random_baselines <- random_baselines[, recall_sd := NULL]
+random_baselines <- random_baselines[, accuracy_ci := NULL]
+random_baselines <- random_baselines[, precision_ci := NULL]
+random_baselines <- random_baselines[, recall_ci := NULL]
+
+
+
+starting_probabilities <- t(starting_probabilities)
+starting_probabilities <- as.data.table(starting_probabilities)
+starting_probabilities <- starting_probabilities[, V2 := as.numeric(V2)]
+
+```
+
+```{r data}
+hmm_output_no_substituiton
+hmm_output_subsitution_before
+hmm_output_subsitution_after
+
+hmm_output_master_no_substitution
+hmm_output_master_substitution_before
+hmm_output_master_substitution_after
+
+random_baselines
+
+starting_probabilities
+emission_probabilities_A
+emission_probabilities_B
+```
+
+```{r data}
+hmm_output_master_substitution_after[, MCC]
+hmm_output_master_substitution_before[, MCC]
+differences_MCC = hmm_output_master_substitution_after[, MCC] - hmm_output_master_substitution_before[, MCC]
+differences_MCC
+mean(differences_MCC)
+
+```
+
+```{r plots, echo=FALSE}
+pd <- position_dodge(0.3)
+
+
+ggplot(hmm_output_no_substituiton) +
+  
+  # Removing accuracy
+  #geom_line(aes(y=Mean_Accuracy, x=HighestOrder, color="Accuracy"), position=pd, size=0.6) +
+  #geom_errorbar(aes(y=Mean_Accuracy, x=HighestOrder, ymin=Mean_Accuracy-Error_Margin_Accuracy, ymax=Mean_Accuracy+Error_Margin_Accuracy, color="Accuracy"), width=0.5, size=0.3, position=pd) +
+  #geom_point(aes(y=Accuracy_1, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_point(aes(y=Accuracy_2, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_point(aes(y=Accuracy_3, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_point(aes(y=Accuracy_4, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_hline(yintercept=random_baselines[target == "residue_6state"]$accuracy, color="red", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Mean_Precision, x=HighestOrder, color="Precision"), position=pd, size=0.6) +
+  geom_errorbar(aes(y=Mean_Precision, x=HighestOrder, ymin=Mean_Precision-Error_Margin_Precision, ymax=Mean_Precision+Error_Margin_Precision, color="Precision"), width=0.5, size=0.3, position=pd) +
+  geom_point(aes(y=Precision_1, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_point(aes(y=Precision_2, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_point(aes(y=Precision_3, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_point(aes(y=Precision_4, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_6state"]$precision), color="cyan3", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Mean_Recall, x=HighestOrder, color="Recall"), position=pd, size=0.6) +
+  geom_errorbar(aes(y=Mean_Recall, x=HighestOrder, ymin=Mean_Recall-Error_Margin_Recall, ymax=Mean_Recall+Error_Margin_Recall, color="Recall"), width=0.5, size=0.3, position=pd) +
+  geom_point(aes(y=Recall_1, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_point(aes(y=Recall_2, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_point(aes(y=Recall_3, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_point(aes(y=Recall_4, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_6state"]$recall), color="blueviolet", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Mean_MCC, x=HighestOrder, color="MCC"), position=pd, size=0.6) +
+  geom_errorbar(aes(y=Mean_MCC, x=HighestOrder, ymin=Mean_MCC-Error_Margin_MCC, ymax=Mean_MCC+Error_Margin_MCC, color="MCC"), width=0.5, size=0.3, position=pd) +
+  geom_point(aes(y=MCC_1, x=HighestOrder, color="MCC"), size=0.8) +
+  geom_point(aes(y=MCC_2, x=HighestOrder, color="MCC"), size=0.8) +
+  geom_point(aes(y=MCC_3, x=HighestOrder, color="MCC"), size=0.8) +
+  geom_point(aes(y=MCC_4, x=HighestOrder, color="MCC"), size=0.8) +
+  
+  
+  labs(title="No Substitution", color="Scores") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  scale_y_continuous(breaks=c(0:10)/10.0, labels=c(0:10)/10.0) +
+  xlab("Highest Order") +
+  ylab("Score") + 
+  
+  theme_bw()
+
+
+
+ggplot(hmm_output_subsitution_before) +
+  
+  #geom_line(aes(y=Mean_Accuracy, x=HighestOrder, color="Accuracy"), position=pd, size=0.6) +
+  #geom_errorbar(aes(y=Mean_Accuracy, x=HighestOrder, ymin=Mean_Accuracy-Error_Margin_Accuracy, ymax=Mean_Accuracy+Error_Margin_Accuracy, color="Accuracy"), width=0.5, size=0.3, position=pd) +
+  #geom_point(aes(y=Accuracy_1, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_point(aes(y=Accuracy_2, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_point(aes(y=Accuracy_3, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_point(aes(y=Accuracy_4, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_hline(yintercept=random_baselines[target == "residue_4state"]$accuracy, color="red", size=0.7 , linetype='dotted') +
+
+  
+  geom_line(aes(y=Mean_Precision, x=HighestOrder, color="Precision"), position=pd, size=0.6) +
+  geom_errorbar(aes(y=Mean_Precision, x=HighestOrder, ymin=Mean_Precision-Error_Margin_Precision, ymax=Mean_Precision+Error_Margin_Precision, color="Precision"), width=0.5, size=0.3, position=pd) +
+  geom_point(aes(y=Precision_1, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_point(aes(y=Precision_2, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_point(aes(y=Precision_3, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_point(aes(y=Precision_4, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_4state"]$precision), color="cyan3", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Mean_Recall, x=HighestOrder, color="Recall"), position=pd, size=0.6) +
+  geom_errorbar(aes(y=Mean_Recall, x=HighestOrder, ymin=Mean_Recall-Error_Margin_Recall, ymax=Mean_Recall+Error_Margin_Recall, color="Recall"), width=0.5, size=0.3, position=pd) +
+  geom_point(aes(y=Recall_1, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_point(aes(y=Recall_2, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_point(aes(y=Recall_3, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_point(aes(y=Recall_4, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_4state"]$recall), color="blueviolet", size=0.7 , linetype='dotted') +
+    
+  geom_line(aes(y=Mean_MCC, x=HighestOrder, color="MCC"), position=pd, size=0.6) +
+  geom_errorbar(aes(y=Mean_MCC, x=HighestOrder, ymin=Mean_MCC-Error_Margin_MCC, ymax=Mean_MCC+Error_Margin_MCC, color="MCC"), width=0.5, size=0.3, position=pd) +
+  geom_point(aes(y=MCC_1, x=HighestOrder, color="MCC"), size=0.8) +
+  geom_point(aes(y=MCC_2, x=HighestOrder, color="MCC"), size=0.8) +
+  geom_point(aes(y=MCC_3, x=HighestOrder, color="MCC"), size=0.8) +
+  geom_point(aes(y=MCC_4, x=HighestOrder, color="MCC"), size=0.8) +
+  
+  labs(title="Substitution Before", color="Scores") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  scale_y_continuous(breaks=c(0:10)/10.0, labels=c(0:10)/10.0) +
+  xlab("Highest Order") +
+  ylab("Score") + 
+  
+  theme_bw()
+
+
+ggplot(hmm_output_subsitution_after) +
+  
+  #geom_line(aes(y=Mean_Accuracy, x=HighestOrder, color="Accuracy"), position=pd, size=0.6) +
+  #geom_errorbar(aes(y=Mean_Accuracy, x=HighestOrder, ymin=Mean_Accuracy-Error_Margin_Accuracy, ymax=Mean_Accuracy+Error_Margin_Accuracy, color="Accuracy"), width=0.5, size=0.3, position=pd) +
+  #geom_point(aes(y=Accuracy_1, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_point(aes(y=Accuracy_2, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_point(aes(y=Accuracy_3, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_point(aes(y=Accuracy_4, x=HighestOrder, color="Accuracy"), size=0.8) +
+  #geom_hline(yintercept=random_baselines[target == "residue_4state"]$accuracy, color="red", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Mean_Precision, x=HighestOrder, color="Precision"), position=pd, size=0.6) +
+  geom_errorbar(aes(y=Mean_Precision, x=HighestOrder, ymin=Mean_Precision-Error_Margin_Precision, ymax=Mean_Precision+Error_Margin_Precision, color="Precision"), width=0.5, size=0.3, position=pd) +
+  geom_point(aes(y=Precision_1, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_point(aes(y=Precision_2, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_point(aes(y=Precision_3, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_point(aes(y=Precision_4, x=HighestOrder, color="Precision"), size=0.8) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_4state"]$precision), color="cyan3", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Mean_Recall, x=HighestOrder, color="Recall"), position=pd, size=0.6) +
+  geom_errorbar(aes(y=Mean_Recall, x=HighestOrder, ymin=Mean_Recall-Error_Margin_Recall, ymax=Mean_Recall+Error_Margin_Recall, color="Recall"), width=0.5, size=0.3, position=pd) +
+  geom_point(aes(y=Recall_1, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_point(aes(y=Recall_2, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_point(aes(y=Recall_3, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_point(aes(y=Recall_4, x=HighestOrder, color="Recall"), size=0.8) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_4state"]$recall), color="blueviolet", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Mean_MCC, x=HighestOrder, color="MCC"), position=pd, size=0.6) +
+  geom_errorbar(aes(y=Mean_MCC, x=HighestOrder, ymin=Mean_MCC-Error_Margin_MCC, ymax=Mean_MCC+Error_Margin_MCC, color="MCC"), width=0.5, size=0.3, position=pd) +
+  geom_point(aes(y=MCC_1, x=HighestOrder, color="MCC"), size=0.8) +
+  geom_point(aes(y=MCC_2, x=HighestOrder, color="MCC"), size=0.8) +
+  geom_point(aes(y=MCC_3, x=HighestOrder, color="MCC"), size=0.8) +
+  geom_point(aes(y=MCC_4, x=HighestOrder, color="MCC"), size=0.8) +
+  
+  labs(title="K-Fold Cross Validation Performance", color="Scores") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  scale_y_continuous(breaks=c(0:10)/10.0, labels=c(0:10)/10.0) +
+  xlab("Highest Order") +
+  ylab("Score") + 
+  
+  theme_bw()
+
+
+ggplot(hmm_output_master_no_substitution) +
+  
+  #geom_line(aes(y=Accuracy, x=HighestOrder, color="Accuracy"), position=pd, size=0.6) +
+  #geom_hline(yintercept=random_baselines[target == "residue_6state"]$accuracy, color="red", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Precision, x=HighestOrder, color="Precision"), position=pd, size=0.6) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_6state"]$precision), color="cyan3", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Recall, x=HighestOrder, color="Recall"), position=pd, size=0.6) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_6state"]$recall), color="blueviolet", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=MCC, x=HighestOrder, color="MCC"), position=pd, size=0.6) +
+  
+  
+  labs(title="No Substitution", color="Scores") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  scale_y_continuous(breaks=c(0:10)/10.0, labels=c(0:10)/10.0) +
+  xlab("Highest Order") +
+  ylab("Score") + 
+  
+  theme_bw()
+
+
+
+ggplot(hmm_output_master_substitution_before) +
+  
+  #geom_line(aes(y=Accuracy, x=HighestOrder, color="Accuracy"), position=pd, size=0.6) +
+  #geom_hline(yintercept=random_baselines[target == "residue_4state"]$accuracy, color="red", size=0.7 , linetype='dotted') +
+
+  
+  geom_line(aes(y=Precision, x=HighestOrder, color="Precision"), position=pd, size=0.6) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_4state"]$precision), color="cyan3", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Recall, x=HighestOrder, color="Recall"), position=pd, size=0.6) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_4state"]$recall), color="blueviolet", size=0.7 , linetype='dotted') +
+    
+  geom_line(aes(y=MCC, x=HighestOrder, color="MCC"), position=pd, size=0.6) +
+  
+  labs(title="Substitution Before", color="Scores") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  scale_y_continuous(breaks=c(0:10)/10.0, labels=c(0:10)/10.0) +
+  xlab("Highest Order") +
+  ylab("Score") + 
+  
+  theme_bw()
+
+
+ggplot(hmm_output_master_substitution_after) +
+  
+  #geom_line(aes(y=Accuracy, x=HighestOrder, color="Accuracy"), position=pd, size=0.6) +
+  #geom_hline(yintercept=random_baselines[target == "residue_4state"]$accuracy, color="red", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Precision, x=HighestOrder, color="Precision"), position=pd, size=0.6) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_4state"]$precision), color="cyan3", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=Recall, x=HighestOrder, color="Recall"), position=pd, size=0.6) +
+  geom_hline(yintercept=as.numeric(random_baselines[target == "residue_6state"]$recall), color="blueviolet", size=0.7 , linetype='dotted') +
+  
+  geom_line(aes(y=MCC, x=HighestOrder, color="MCC"), position=pd, size=0.6) +
+  
+  labs(title="Substitution After", color="Scores") +
+  scale_x_continuous(breaks=c(0:10), labels=c(0:10)) +
+  scale_y_continuous(breaks=c(0:10)/10.0, labels=c(0:10)/10.0) +
+  xlab("Highest Order") +
+  ylab("Score") + 
+  
+  theme_bw()
+
+
+
+ggplot(starting_probabilities, aes(x=V1, y=V2)) +
+  geom_col() + 
+  labs(title="Starting Pobabilities") +
+  xlab("Probability") +
+  ylab("State") + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90))
+  
+```
+
+```{r plots, echo=FALSE}
+
+fixInNamespace("draw_colnames","pheatmap")
+
+#function (coln, gaps, vjust_col, hjust_col, angle_col, ...) 
+#{
+#    coord = find_coordinates(length(coln), gaps)
+#    x = coord$coord - 0.5 * coord$size
+#    res = textGrob(coln, x = x, y = unit(1, "npc") - unit(3, "bigpts"), vjust = vjust_col, hjust = hjust_col, rot = angle_col, 
+#        gp = gpar(...))
+#    return(res)
+#}
+
+# [[6914, 2027, 26, 2344], [1144, 1249, 0, 356], [734, 219, 2038, 6123], [6555, 2468, 1227, 253856]]
+
+confusion_matrix <- matrix(c(6914,2027,26,2344, 1144,1249,0,356, 734,219,2038,6123, 6555,2468,1227,253856), nrow = 4)
+
+colnames(confusion_matrix) <- c("Sec/SPI", "SEC/SPII", "TAT/SPI", "No_SP")
+rownames(confusion_matrix) <- c("Sec/SPI", "SEC/SPII", "TAT/SPI", "No_SP")
+pheatmap(confusion_matrix, cluster_cols = FALSE, cluster_rows = FALSE, color = hcl.colors(80, "BluYl"), display_numbers = TRUE, number_color = "black", fontsize_number = 25, number_format = "%d", , legend = FALSE)
+
+confusion_matrix <- matrix(c(10201,12973,  253856,10250), nrow = 2)
+colnames(confusion_matrix) <- c("Positives", "Negatives")
+rownames(confusion_matrix) <- c("True", "False")
+ 
+pheatmap(confusion_matrix, cluster_cols = FALSE, cluster_rows = FALSE, color = hcl.colors(80, "BluYl"), display_numbers = TRUE, number_color = "black", fontsize_number = 40, number_format = "%d", , legend = FALSE)
+
+
+
+pheatmap(t(emission_probabilities_B), cluster_cols = FALSE, cluster_rows = FALSE, color = hcl.colors(80, "BluYl"), display_numbers = TRUE, number_color = "black", fontsize_number = 10, number_format = "%.4f")
+
+```
+
+
+
