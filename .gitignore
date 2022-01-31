@@ -1,0 +1,47 @@
+# Data files
+*.fasta
+*.tsv
+*.csv
+*.pth
+data
+.data
+.aaindex1
+.dataset
+
+# Images, plots
+*.jpg
+*.jpeg
+*.png
+*.bmp
+
+# IDE files
+.idea
+.vscode
+
+# Caches
+__pycache__
+cache
+.cache
+.mypy_cache
+
+# Log files
+*.log
+log
+.fold_worker_log
+
+./trash
+/data
+.Rproj.user
+/hmm-4-state-per-residue/data-vizualitation/data/
+
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Trashes
+
+# Linux
+.Trash-*
+.trash

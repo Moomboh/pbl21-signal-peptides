@@ -1,0 +1,2 @@
+# Multimodal Deep Learning - Elias
+A deep learning approach using multimodal end-to-end learning. Both per residue annotations and per protein type annotations are predicted using a single model. The model consist of a combination of convolutional- and LSTM-layers and some variants use a CRF as output layer
