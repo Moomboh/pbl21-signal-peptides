@@ -1,0 +1,1 @@
+# 4 state per protein prediction ANN - Selin
